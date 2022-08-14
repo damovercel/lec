@@ -27,7 +27,7 @@ URL_LECTULANDIA = CONFIG["URL_LECTULANDIA"]
 
 scraper = create_scraper(browser=WEB_BROWSER)
 
-URL_LECTULANDIA = scraper.get(url=URL_LECTULANDIA).url
+# URL_LECTULANDIA = scraper.get(url=URL_LECTULANDIA).url
 
 # def printt(*values):
 # 	rep = ""

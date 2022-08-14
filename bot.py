@@ -41,7 +41,7 @@ def printt(*values):
 
 def command_start(update, context):
 	chatId = update["message"]["chat"]["id"]
-	bot.send_message(chat_id=chatId, text=".")
+	bot.send_message(chat_id=chatId, text="e")
 
 def b_search(update, context):
 	chatId = update["message"]["chat"]["id"]

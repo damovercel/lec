@@ -41,7 +41,7 @@ scraper = create_scraper(browser=WEB_BROWSER)
 
 def command_start(update, context):
 	chatId = update["message"]["chat"]["id"]
-	bot.send_message(chat_id=chatId, text="e")
+	bot.send_message(chat_id=chatId, text="a")
 
 def b_search(update, context):
 	chatId = update["message"]["chat"]["id"]

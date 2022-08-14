@@ -27,16 +27,16 @@ URL_LECTULANDIA = CONFIG["URL_LECTULANDIA"]
 
 scraper = create_scraper(browser=WEB_BROWSER)
 
-URL_LECTULANDIA = scraper.get(url=URL_LECTULANDIA).url
+# URL_LECTULANDIA = scraper.get(url=URL_LECTULANDIA).url
 
-def printt(*values):
-	rep = ""
-	if len(values) == 1:
-		rep += values[0]
-	else:
-		for c in values:
-			rep += f"{c}\n"
-	bot.send_message(chat_id=DEBUG_ID, text=rep)
+# def printt(*values):
+# 	rep = ""
+# 	if len(values) == 1:
+# 		rep += values[0]
+# 	else:
+# 		for c in values:
+# 			rep += f"{c}\n"
+# 	bot.send_message(chat_id=DEBUG_ID, text=rep)
 
 
 def command_start(update, context):

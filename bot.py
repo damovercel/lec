@@ -52,6 +52,8 @@ def b_search(update, context):
 	chatId = update["message"]["chat"]["id"]
 	chatMessage = update["message"]["text"]
 	chatMessageHtml = quote(chatMessage)
+
+
 	if chatMessage.startswith(f"{URL_LECTULANDIA}/book/"):
 		rtext = ""
 		rtext += f"Buscando informacion de: <b>{chatMessage}</b>"
@@ -62,13 +64,14 @@ def b_search(update, context):
 			b_title = page_tree.xpath('//*[@id="title"]/h1')[0].text
 			b_cover = page_tree.xpath('//*[@id="cover"]/img')[0].attrib["src"]
 			b_author = []
-			for a in page_tree.xpath('//*[@id="autor"]'):
-				print(a.xpath('.//a'))
-				b_author.append(a.xpath('.//a')[0].text)
+			for e in page_tree.xpath('//*[@id="autor"]')[0]:
+				if e.tag == "a":
+					b_author.append(e.text)
+				# print(a.xpath('.//a'))
 			b_genre = []
-			for a in page_tree.xpath('//*[@id="genero"]'):
-				b_genre.append(a.xpath('.//a')[0].text)
-			# b_sinopsis = page_tree.xpath('//*[@id="sinopsis"]')[0].text_content()
+			for e in page_tree.xpath('//*[@id="genero"]')[0]:
+				if e.tag == "a":
+					b_genre.append(e.text)
 			b_sinopsis = page_tree.xpath('//*[@name="description"]')[0].attrib["content"]
 			b_downloads = {}
 			for d in page_tree.xpath('//*[@id="downloadContainer"]')[0]:
@@ -105,19 +108,24 @@ def b_search(update, context):
 			for el in page_tree.xpath('//*[@id="main"]')[0]:
 				if el.tag == "div":
 					if el.attrib["class"] == "content-wrap":
-						# print(div.xpath('.//section/h2')[0].text)
 						div_name = el.xpath('.//section/h2')[0].text.strip(":")
 						found_list[div_name] = []
 						for li in el.xpath('.//section/div/ul')[0]:
-							# print(li)
-							ul_name = li.xpath('.//a')[0].text
+							if div_name == "Series":
+								ul_name = f"📚 {li.xpath('.//a')[0].text}"
+							elif div_name == "Autores":
+								ul_name = f"👩🏼‍💻 {li.xpath('.//a')[0].text}"
+							else:
+								ul_name = f"nd {li.xpath('.//a')[0].text}"
 							ul_url = li.xpath('.//a')[0].attrib["href"]
 							found_list[div_name].append({"name": ul_name, "url": ul_url})
 				if el.tag == "article":
 					if el.attrib["class"] == "card":
 						if not "Libros" in found_list.keys():
 							found_list["Libros"] = []
-						ar_name = el.xpath('.//div/h2/a')[0].text
+						ar_name = el.xpath('.//div/h2/a')[0].text.replace("\n", "").strip()
+						ar_name = f"📖 {ar_name}"
+						# print('"' + ar_name + '"')
 						ar_url = el.xpath('.//div/h2/a')[0].attrib["href"]
 						found_list["Libros"].append({"name": ar_name, "url": ar_url})
 
@@ -130,12 +138,20 @@ def b_search(update, context):
 					rtext += f"<b>{k}</b>:"
 					rtext += f"\n\n"
 					for r in found_list[k]:
-						rtext += f'{r["name"]}\n<code>{URL_LECTULANDIA}{r["url"]}</code>\n\n'
-					bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+						r_now = f"<a href=\"{URL_LECTULANDIA}{r['url']}\">{r['name']}</a>\n\n"
+						if len(rtext + r_now) >= 4096:
+							bot.send_message(chat_id=chatId, text=rtext, parse_mode="html", disable_web_page_preview=True)
+							rtext = ""
+							rtext += f"<b>{k}</b>:"
+							rtext += f"\n\n"
+
+						rtext += r_now
+					bot.send_message(chat_id=chatId, text=rtext, parse_mode="html", disable_web_page_preview=True)
 		else:
 			rtext = ""
 			rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
 			bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text=rtext, parse_mode="html")
+
 def dl_antupload(update, context):
 	update.callback_query.answer()
 	chatId = update["callback_query"]["message"]["chat"]["id"]
@@ -183,15 +199,21 @@ def dl_antupload(update, context):
 							if buff:
 								b_file.write(buff)
 						b_file.close()
-				rtext = ""
-				rtext += f"<b>Compartido</b>: {b_time}"
-				bot.send_document(chat_id=chatId, document=open(file=f"./books/{b_name}", mode="rb"), caption=rtext, parse_mode="html")
+				# rtext = ""
+				# rtext += f"<b>Compartido</b>: {b_time}"
+				bot.send_document(chat_id=chatId, document=open(file=f"./books/{b_name}", mode="rb"), parse_mode="html")
 				unlink(f"./books/{b_name}")
+
+			else:
+				rtext = ""
+				rtext += "<b>Error</b>: la conexion a antupload ha fallado"
+				bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
 
 	else:
 		rtext = ""
-		rtext += "<b>Error</b>: la conexion a antupload ha fallado"
+		rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
 		bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+
 
 
 

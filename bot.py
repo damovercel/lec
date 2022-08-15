@@ -1,18 +1,17 @@
 #!/bin/python3
 
 from telegram import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-from os import environ, mkdir
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+from os import environ, mkdir, unlink
 from lxml.html import fromstring
 from json import load
 from urllib.parse import quote
 from cloudscraper import create_scraper
 # from urllib.parse import quote
-
 ###        								###
 ###        								###
 ###        								###
-#print("arregral la linea 32, esta feisima")
+print("arregral en la busqueda la recoleccion de generos, autores, y series")
 ###        								###
 ###    									###
 ###    									###
@@ -24,6 +23,12 @@ CONFIG = load(open("./config.json"))
 WEB_HEADERS = CONFIG["WEB_HEADERS"]
 WEB_BROWSER = CONFIG["WEB_BROWSER"]
 URL_LECTULANDIA = CONFIG["URL_LECTULANDIA"]
+URL_ANTUPLOAD = CONFIG["URL_ANTUPLOAD"]
+
+try:
+	mkdir("./books/")
+except:
+	pass
 
 scraper = create_scraper(browser=WEB_BROWSER)
 
@@ -71,9 +76,10 @@ def b_search(update, context):
 				b_downloads[d.xpath('.//input')[0].attrib["value"]] = d.attrib["href"]
 			b_id = []
 			for d in b_downloads.keys():
-				l1 = b_downloads[d].find("&d=")
+				l1 = b_downloads[d].find("&d=") + 3
 				l2 = b_downloads[d].find("&ti", l1 + 1)
-				b_id.append(InlineKeyboardButton(text=d, callback_data=b_downloads[d][l1 : l2]))
+				print(b_downloads[d][l1 : l2])
+				b_id.append(InlineKeyboardButton(text=d, callback_data=f"antupload {b_downloads[d][l1 : l2]}"))
 			rtext = ""
 			rtext += f"<b>{b_title}</b>\n\n"
 			rtext += f'<b>Autor</b>: {", ".join(b_author)}\n'
@@ -84,10 +90,9 @@ def b_search(update, context):
 			bot.edit_message_media(chat_id=chatId, message_id=to_edit.message_id, reply_markup=InlineKeyboardMarkup([b_id]), media=InputMediaPhoto(media=b_cover, caption=rtext, parse_mode="html"))
 
 		else:
-			#bot.edit_message_media(chat_id=chatId, media=InputMediaPhoto(media=f"{URL_ANIMEFLV}/uploads/animes/covers/{var_anime_info[0]}.jpg", caption=info_result, parse_mode="html") , message_id=message_searching["message_id"])
-			bot.edit_message_caption(message_id=to_edit.message_id, chat_id=chatId, caption="<b>Error</b>: la conexion a lectulandia ha fallado", parse_mode="html")
-
-			
+			rtext = ""
+			rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
+			bot.edit_message_caption(message_id=to_edit.message_id, chat_id=chatId, caption=rtext, parse_mode="html")	
 
 	else:
 		rtext = ""
@@ -128,8 +133,65 @@ def b_search(update, context):
 						rtext += f'{r["name"]}\n<code>{URL_LECTULANDIA}{r["url"]}</code>\n\n'
 					bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
 		else:
-			bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text="<b>Error</b>: la conexion a lectulandia ha fallado", parse_mode="html")
+			rtext = ""
+			rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
+			bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text=rtext, parse_mode="html")
+def dl_antupload(update, context):
+	update.callback_query.answer()
+	chatId = update["callback_query"]["message"]["chat"]["id"]
+	callb_query = update["callback_query"]["data"]
+	b_id = callb_query.split(" ")[1]
+	print(callb_query)
+	req = scraper.get(url=f"{URL_LECTULANDIA}/download.php?d={b_id}")
+	if req.status_code == 200:
+		page_tree = fromstring(html=req.content)
+		script_text = ""
+		for s in page_tree.xpath('//*/script'):
+			if s.text is not None:
+				if "linkCode" in s.text:
+					script_text = s.text
+		antu_id = ""
+		if script_text:
+			l1 = script_text.find("linkCode") + 8
+			l2 = script_text.find(";", l1 + 1)
+			antu_id = script_text[l1 : l2].replace("=", " ").strip().strip('"')
+			if antu_id.endswith("/"):
+				antu_id = antu_id[: -1]
+			print(antu_id)
+		if antu_id:
+			req = scraper.get(url=f"{URL_ANTUPLOAD}/file/{antu_id}")
+			#print(req.text)
+			if req.status_code == 200:
+				page_tree = fromstring(html=req.content)
+				b_url = page_tree.get_element_by_id("downloadB").attrib["href"]
+				
+				b_name = ""
+				b_time = ""
+				for p in page_tree.get_element_by_id("fileDescription"):
+					des = p.xpath('.//span')
+					if des:
+						text_cont = p.xpath('.//text()')
+						if len(text_cont) > 1:
+							if text_cont[0] == "Name: ":
+								b_name = text_cont[1]
+							elif text_cont[0] == "Uploaded: ":
+								b_time = text_cont[1]
+				b_file = open(file=f"./books/{b_name}", mode="wb")
+				with scraper.get(url=f"{URL_ANTUPLOAD}{b_url}", stream=True) as req_b:
+					if req_b.status_code == 200:
+						for buff in req_b.iter_content(chunk_size=1024):
+							if buff:
+								b_file.write(buff)
+						b_file.close()
+				rtext = ""
+				rtext += f"<b>Compartido</b>: {b_time}"
+				bot.send_document(chat_id=chatId, document=open(file=f"./books/{b_name}", mode="rb"), caption=rtext, parse_mode="html")
+				unlink(f"./books/{b_name}")
 
+	else:
+		rtext = ""
+		rtext += "<b>Error</b>: la conexion a antupload ha fallado"
+		bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
 
 
 
@@ -140,6 +202,7 @@ if __name__ == '__main__':
 
 	dispatcher.add_handler(CommandHandler(command="start", callback=command_start))
 	dispatcher.add_handler(MessageHandler(filters=Filters.text, callback=b_search))
+	dispatcher.add_handler(CallbackQueryHandler(pattern="antupload", callback=dl_antupload))
 
 	bot.send_message(chat_id=DEBUG_ID, text="Polling!!!")
 	print("Polling!!!")

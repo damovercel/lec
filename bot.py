@@ -46,7 +46,7 @@ def printt(*values):
 
 def command_start(update, context):
 	chatId = update["message"]["chat"]["id"]
-	bot.send_message(chat_id=chatId, text="o")
+	bot.send_message(chat_id=chatId, text="Still under construction...")
 
 def b_search(update, context):
 	chatId = update["message"]["chat"]["id"]
@@ -64,18 +64,18 @@ def b_search(update, context):
 			b_title = page_tree.xpath('//*[@id="title"]/h1')[0].text
 			b_cover = page_tree.xpath('//*[@id="cover"]/img')[0].attrib["src"]
 			b_author = []
-			for e in page_tree.xpath('//*[@id="autor"]')[0]:
+			for e in page_tree.get_element_by_id("autor"):
 				if e.tag == "a":
-					b_author.append(e.text)
+					b_author.append({"name": e.text, "url": e.attrib["href"]})
 				# print(a.xpath('.//a'))
 			b_genre = []
-			for e in page_tree.xpath('//*[@id="genero"]')[0]:
+			for e in page_tree.get_element_by_id("genero"):
 				if e.tag == "a":
-					b_genre.append(e.text)
+					b_genre.append({"name": e.text, "url": e.attrib["href"]})
 			b_sinopsis = page_tree.xpath('//*[@name="description"]')[0].attrib["content"]
 			b_downloads = {}
-			for d in page_tree.xpath('//*[@id="downloadContainer"]')[0]:
-				print(d)
+			for d in page_tree.get_element_by_id("downloadContainer"):
+				# print(d)
 				b_downloads[d.xpath('.//input')[0].attrib["value"]] = d.attrib["href"]
 			b_id = []
 			for d in b_downloads.keys():
@@ -83,10 +83,17 @@ def b_search(update, context):
 				l2 = b_downloads[d].find("&ti", l1 + 1)
 				print(b_downloads[d][l1 : l2])
 				b_id.append(InlineKeyboardButton(text=d, callback_data=f"antupload {b_downloads[d][l1 : l2]}"))
+			b_author_str = []
+			b_genre_str = []
+			for a in b_author:
+				b_author_str.append(f"<a href=\"{URL_LECTULANDIA}{a['url']}\">{a['name']}</a>")
+			for g in b_genre:
+				b_genre_str.append(f"<a href=\"{URL_LECTULANDIA}{g['url']}\">{g['name']}</a>")
+			# print(b_author, b_genre)
 			rtext = ""
 			rtext += f"<b>{b_title}</b>\n\n"
-			rtext += f'<b>Autor</b>: {", ".join(b_author)}\n'
-			rtext += f'<b>Genero</b>: {", ".join(b_genre)}\n'
+			rtext += f'<b>Autor</b>: {", ".join(b_author_str)}\n'
+			rtext += f'<b>Genero</b>: {", ".join(b_genre_str)}\n'
 			rtext += f"<b>Sinopsis</b>: {b_sinopsis}"
 			print(b_id)
 
@@ -95,17 +102,24 @@ def b_search(update, context):
 		else:
 			rtext = ""
 			rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
-			bot.edit_message_caption(message_id=to_edit.message_id, chat_id=chatId, caption=rtext, parse_mode="html")	
+			bot.edit_message_caption(message_id=to_edit.message_id, chat_id=chatId, caption=rtext, parse_mode="html")
 
 	else:
 		rtext = ""
 		rtext += f"Buscando resultados para: <b>{chatMessage}</b>"
-		to_edit = bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
-		req = scraper.get(url=f"{URL_LECTULANDIA}/search/{chatMessageHtml}")
+		to_edit = bot.send_message(chat_id=chatId, text=rtext, parse_mode="html", disable_web_page_preview=True)
+		if chatMessage.startswith(f"{URL_LECTULANDIA}/search/") \
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/autor/") \
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/serie/") \
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/genero/"):
+			to_req = f"{chatMessage}"
+		else:
+			to_req = f"{URL_LECTULANDIA}/search/{chatMessageHtml}"
+		req = scraper.get(url=to_req)
 		page_tree = fromstring(html=req.content)
 		if req.status_code == 200:
 			found_list = {}
-			for el in page_tree.xpath('//*[@id="main"]')[0]:
+			for el in page_tree.get_element_by_id("main"):
 				if el.tag == "div":
 					if el.attrib["class"] == "content-wrap":
 						div_name = el.xpath('.//section/h2')[0].text.strip(":")
@@ -119,26 +133,77 @@ def b_search(update, context):
 								ul_name = f"nd {li.xpath('.//a')[0].text}"
 							ul_url = li.xpath('.//a')[0].attrib["href"]
 							found_list[div_name].append({"name": ul_name, "url": ul_url})
+					elif el.attrib["class"] == "page-nav":
+						if not "Pages" in found_list.keys():
+							found_list["Pages"] = []
+						for bu in el:
+							print(bu.text_content())
+							if bu.attrib["class"] == "page-numbers current" or bu.attrib["class"] == "page-numbers dots":
+								found_list["Pages"].append({"name": bu.text, "url": "non"})
+							else:
+								found_list["Pages"].append({"name": bu.text, "url": bu.attrib['href']})
+						print(found_list["Pages"])
+									#found_list["Pages"][el.text] = f"{URL_LECTULANDIA}{bu.attrib['href']}"
+
 				if el.tag == "article":
 					if el.attrib["class"] == "card":
+						ar_lin_li = []
+						ge_lin_li = []
+						ar_name = ""
+						ar_url = ""
+						ar_lin = ""
+						ge_lin = ""
 						if not "Libros" in found_list.keys():
 							found_list["Libros"] = []
-						ar_name = el.xpath('.//div/h2/a')[0].text.replace("\n", "").strip()
+						for e in el.xpath('.//div')[0]:
+							# print(e.attrib)
+							if e.tag == "h2":
+								e_a = e.xpath('.//a')[0]
+								ar_name = e_a.text.replace("\n", "").strip()
+								ar_url = e_a.attrib["href"]
+							elif e.attrib["class"] == "subdetail":
+								# print("once")
+								if not ar_lin_li:
+									for a in e:
+										ar_lin_li.append(f"<a href=\"{URL_LECTULANDIA}{a.attrib['href']}\">{a.text}</a>")
+								elif not ge_lin_li:
+									for a in e:
+										ge_lin_li.append(f"<a href=\"{URL_LECTULANDIA}{a.attrib['href']}\">{a.text}</a>")
+								if ar_lin_li:
+									ar_lin = ", ".join(ar_lin_li)
+								if ge_lin_li:
+									ge_lin = ", ".join(ge_lin_li)
+						# replace("\n", "").strip()
 						ar_name = f"📖 {ar_name}"
 						# print('"' + ar_name + '"')
-						ar_url = el.xpath('.//div/h2/a')[0].attrib["href"]
-						found_list["Libros"].append({"name": ar_name, "url": ar_url})
+						# ar_url = el.xpath('.//div/h2/a')[0].attrib["href"]
+						found_list["Libros"].append({"name": ar_name, "url": ar_url, "ar_lin": ar_lin, "ge_lin": ge_lin})
 
 			if not found_list:
-				bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text=f"Ningun resultado para: <b>{chatMessage}</b>", parse_mode="html")
+				bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text=f"Ningun resultado para: <b>{chatMessage}</b>", parse_mode="html", disable_web_page_preview=True)
 			else:
-				bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text=f"Resultados para: <b>{chatMessage}</b>", parse_mode="html")
+				# print(found_list["Libros"])
+				bot.edit_message_text(message_id=to_edit.message_id, chat_id=chatId, text=f"Resultado para: <b>{chatMessage}</b>", parse_mode="html", disable_web_page_preview=True)
 				for k in found_list.keys():
 					rtext = ""
 					rtext += f"<b>{k}</b>:"
 					rtext += f"\n\n"
 					for r in found_list[k]:
-						r_now = f"<a href=\"{URL_LECTULANDIA}{r['url']}\">{r['name']}</a>\n\n"
+						r_now = ""
+						if k == "Pages":
+							if r["url"] == "non":
+								r_now = f"{r['name']} "
+							else:
+								r_now = f"<a href=\"{URL_LECTULANDIA}{r['url']}\">{r['name']} </a>"
+						elif k == "Libros":
+							r_now = f"<a href=\"{URL_LECTULANDIA}{r['url']}\">{r['name']} </a>\n"
+							if r["ar_lin"]:
+								r_now += f"{r['ar_lin']}\n"
+							if r["ge_lin"]:
+								r_now += f"{r['ge_lin']}\n"
+							r_now += "\n"
+						else:
+							r_now = f"<a href=\"{URL_LECTULANDIA}{r['url']}\">{r['name']}</a>\n\n"
 						if len(rtext + r_now) >= 4096:
 							bot.send_message(chat_id=chatId, text=rtext, parse_mode="html", disable_web_page_preview=True)
 							rtext = ""

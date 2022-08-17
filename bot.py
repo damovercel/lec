@@ -255,7 +255,7 @@ def b_search(update, context, chatMessage=""):
 def dl_antupload(update, context):
 	update.callback_query.answer()
 	chatId = update["callback_query"]["message"]["chat"]["id"]
-	userName = update["message"]["chat"]["first_name"]
+	userName = update["callback_query"]["message"]["chat"]["first_name"]
 	callb_query = update["callback_query"]["data"]
 	b_id = callb_query.split(" ")[1]
 	print(callb_query)

@@ -4,9 +4,10 @@ from telegram import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 from os import environ, mkdir, unlink
 from lxml.html import fromstring
-from json import load
+from json import load, dumps
 from urllib.parse import quote
 from cloudscraper import create_scraper
+from threading import Thread
 # from urllib.parse import quote
 ###        								###
 ###        								###
@@ -18,6 +19,8 @@ print("arregral en la busqueda la recoleccion de generos, autores, y series")
 
 BOT_TOKEN = environ.get("BOT_TOKEN")
 DEBUG_ID = environ.get("DEBUG_ID")
+ADMIN = environ.get("ADMIN")
+LOGS = False
 
 CONFIG = load(open("./config.json"))
 WEB_HEADERS = CONFIG["WEB_HEADERS"]
@@ -45,16 +48,37 @@ def printt(*values):
 
 
 def command_start(update, context):
+	print(str(update))
 	chatId = update["message"]["chat"]["id"]
-	bot.send_message(chat_id=chatId, text="Still under construction...")
+	userName = update["message"]["chat"]["first_name"]
+	if LOGS:
+		rtext = ""
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]<> -> <code>start</code>'
+		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
+		rtext = ""
+	#userId = update["message"]["chat"]["id"]
+	rtext = ""
+	#urle = "tg://user?id=" + str(userId)
+	rtext += f'Still under construction...' #<a href="tg://user?id={userId}">{userName}</a>'
+	bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
 
-def b_search(update, context):
+def b_search(update, context, chatMessage=""):
+	print(update)
 	chatId = update["message"]["chat"]["id"]
-	chatMessage = update["message"]["text"]
+	if not chatMessage:
+		chatMessage = update["message"]["text"]
+	userName = update["message"]["chat"]["first_name"]
+	if LOGS:
+		rtext = ""
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>f {chatMessage}</code>'
+		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
+		rtext = ""
+	print(chatMessage)
 	chatMessageHtml = quote(chatMessage)
 
 
-	if chatMessage.startswith(f"{URL_LECTULANDIA}/book/"):
+	if chatMessage.startswith(f"{URL_LECTULANDIA}/book/") \
+	and len(chatMessage) > len(f"{URL_LECTULANDIA}/book/"):
 		rtext = ""
 		rtext += f"Buscando informacion de: <b>{chatMessage}</b>"
 		to_edit = bot.send_photo(chat_id=chatId, photo=open("./lectulandia.png", "rb"), caption=rtext, parse_mode="html")
@@ -64,14 +88,17 @@ def b_search(update, context):
 			b_title = page_tree.xpath('//*[@id="title"]/h1')[0].text
 			b_cover = page_tree.xpath('//*[@id="cover"]/img')[0].attrib["src"]
 			b_author = []
-			for e in page_tree.get_element_by_id("autor"):
+			for i, e in enumerate(page_tree.get_element_by_id("autor")):
 				if e.tag == "a":
-					b_author.append({"name": e.text, "url": e.attrib["href"]})
+					if i < 2:
+						b_author.append({"name": e.text, "url": e.attrib["href"]})
 				# print(a.xpath('.//a'))
 			b_genre = []
-			for e in page_tree.get_element_by_id("genero"):
+			for i, e in enumerate(page_tree.get_element_by_id("genero")):
 				if e.tag == "a":
-					b_genre.append({"name": e.text, "url": e.attrib["href"]})
+					if i < 2:
+						b_genre.append({"name": e.text, "url": e.attrib["href"]})
+
 			b_sinopsis = page_tree.xpath('//*[@name="description"]')[0].attrib["content"]
 			b_downloads = {}
 			for d in page_tree.get_element_by_id("downloadContainer"):
@@ -111,7 +138,10 @@ def b_search(update, context):
 		if chatMessage.startswith(f"{URL_LECTULANDIA}/search/") \
 		or chatMessage.startswith(f"{URL_LECTULANDIA}/autor/") \
 		or chatMessage.startswith(f"{URL_LECTULANDIA}/serie/") \
-		or chatMessage.startswith(f"{URL_LECTULANDIA}/genero/"):
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/genero/") \
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/compartidos-semana/") \
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/compartidos-mes/") \
+		or chatMessage.startswith(f"{URL_LECTULANDIA}/book/"):
 			to_req = f"{chatMessage}"
 		else:
 			to_req = f"{URL_LECTULANDIA}/search/{chatMessageHtml}"
@@ -133,17 +163,18 @@ def b_search(update, context):
 								ul_name = f"nd {li.xpath('.//a')[0].text}"
 							ul_url = li.xpath('.//a')[0].attrib["href"]
 							found_list[div_name].append({"name": ul_name, "url": ul_url})
-					elif el.attrib["class"] == "page-nav":
+					elif el.attrib["class"] == "page-nav" \
+					or el.attrib["class"] == "page-nav full":
 						if not "Pages" in found_list.keys():
 							found_list["Pages"] = []
 						for bu in el:
-							print(bu.text_content())
+							# print(bu.text_content())
 							if bu.attrib["class"] == "page-numbers current" or bu.attrib["class"] == "page-numbers dots":
 								found_list["Pages"].append({"name": bu.text, "url": "non"})
 							else:
 								found_list["Pages"].append({"name": bu.text, "url": bu.attrib['href']})
-						print(found_list["Pages"])
-									#found_list["Pages"][el.text] = f"{URL_LECTULANDIA}{bu.attrib['href']}"
+						# print(found_list["Pages"])
+									# found_list["Pages"][el.text] = f"{URL_LECTULANDIA}{bu.attrib['href']}"
 
 				if el.tag == "article":
 					if el.attrib["class"] == "card":
@@ -170,8 +201,12 @@ def b_search(update, context):
 									for a in e:
 										ge_lin_li.append(f"<a href=\"{URL_LECTULANDIA}{a.attrib['href']}\">{a.text}</a>")
 								if ar_lin_li:
+									if len(ar_lin_li) > 2:
+										ar_lin_li = ar_lin_li[:2]
 									ar_lin = ", ".join(ar_lin_li)
 								if ge_lin_li:
+									if len(ge_lin_li) > 2:
+										ge_lin_li = ge_lin_li[:2]
 									ge_lin = ", ".join(ge_lin_li)
 						# replace("\n", "").strip()
 						ar_name = f"📖 {ar_name}"
@@ -220,9 +255,15 @@ def b_search(update, context):
 def dl_antupload(update, context):
 	update.callback_query.answer()
 	chatId = update["callback_query"]["message"]["chat"]["id"]
+	userName = update["message"]["chat"]["first_name"]
 	callb_query = update["callback_query"]["data"]
 	b_id = callb_query.split(" ")[1]
 	print(callb_query)
+	if LOGS:
+		rtext = ""
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]<> -> <code>dl_antupload [button] {f"{URL_LECTULANDIA}/download.php?d={b_id}"}</code>'
+		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
+		rtext = ""
 	req = scraper.get(url=f"{URL_LECTULANDIA}/download.php?d={b_id}")
 	if req.status_code == 200:
 		page_tree = fromstring(html=req.content)
@@ -279,17 +320,100 @@ def dl_antupload(update, context):
 		rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
 		bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
 
+def command_top(update, context):
+	b_search(update, context, chatMessage=f"{URL_LECTULANDIA}/book/")
 
+def command_weekly(update, context):
+	b_search(update, context, chatMessage=f"{URL_LECTULANDIA}/compartidos-semana/")
 
+def command_monthly(update, context):
+	b_search(update, context, chatMessage=f"{URL_LECTULANDIA}/compartidos-mes/")
+
+def command_info(update, context):
+	chatId = update["message"]["chat"]["id"]
+	userName = update["message"]["chat"]["first_name"]
+	if LOGS:
+		rtext = ""
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>Info</code>'
+		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
+		rtext = ""
+	rtext = ""
+	rtext += "Buscando <b>Info</b>"
+	to_edit = bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+	req = scraper.get(url=URL_LECTULANDIA)
+	if req.status_code == 200:
+		page_tree = fromstring(html=req.content)
+		s_counter = [[], []]
+		s_counter_str = ""
+		for i, e in enumerate(page_tree.get_element_by_id("counterSection")):
+			if e.tag == "div":
+				for el in e:
+					if el.tag == "div":
+						if i < 2:
+							s_counter[i].append(el.text)
+		print(s_counter)
+		if s_counter:
+			for s in s_counter:
+				s_counter_str += f"<b>{s[0]}</b> {s[1]}\n"
+		rtext = ""
+		if s_counter_str:
+			rtext += s_counter_str
+		bot.edit_message_text(chat_id=chatId, message_id=to_edit.message_id, text=rtext, parse_mode="html")
+	else:
+		rtext = ""
+		rtext += "<b>Error</b>: la conexion a lectulandia ha fallado"
+		bot.edit_message_text(chat_id=chatId, message_id=to_edit.message_id, text=rtext, parse_mode="html")
+
+def command_debug(update, context):
+	chatId = update["message"]["chat"]["id"]
+	print("is debug?")
+	# print(context.args)
+	# print(type(chatId), type(ADMIN))
+	if str(chatId) == ADMIN:
+		print("admin")
+		if len(context.args) == 1:
+			print("1 arg")
+			if context.args[0] == "on":
+				globals()["LOGS"] = True
+			elif context.args[0] == "off":
+				globals()["LOGS"] = False
+			else:
+				pass
+			rtext = ""
+			rtext += f"logs <b>{context.args[0]}</b>"
+			bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+		elif not context.args:
+			rtext = ""
+			rtext += "<b>Error</b>: No se han pasado argumentos"
+			bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+		else:
+			rtext = ""
+			rtext += "<b>Error</b>: Numero de argumentos incorrectos"
+			bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+
+def b_debug(update, context):
+	chatId = update["message"]["chat"]["id"]
+	userName = update["message"]["chat"]["first_name"]
+	if LOGS:
+		rtext = ""
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>Info</code>'
+		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
+		rtext = ""
 
 if __name__ == '__main__':
 	updater = Updater(BOT_TOKEN)
 	dispatcher = updater.dispatcher
 	bot = updater.bot
 
-	dispatcher.add_handler(CommandHandler(command="start", callback=command_start))
-	dispatcher.add_handler(MessageHandler(filters=Filters.text, callback=b_search))
-	dispatcher.add_handler(CallbackQueryHandler(pattern="antupload", callback=dl_antupload))
+	dispatcher.add_handler(CommandHandler(command="start", callback=lambda update, context: Thread(target=command_start, args=(update, context)).start()))
+	dispatcher.add_handler(CallbackQueryHandler(pattern="antupload", callback=lambda update, context: Thread(target=dl_antupload, args=(update, context)).start()))
+	dispatcher.add_handler(CommandHandler(command="top", callback=lambda update, context: Thread(target=command_top, args=(update, context)).start()))
+	dispatcher.add_handler(CommandHandler(command="weekly", callback=lambda update, context: Thread(target=command_weekly, args=(update, context)).start()))
+	dispatcher.add_handler(CommandHandler(command="monthly", callback=lambda update, context: Thread(target=command_monthly, args=(update, context)).start()))
+	dispatcher.add_handler(CommandHandler(command="info", callback=lambda update, context: Thread(target=command_info, args=(update, context)).start()))
+	dispatcher.add_handler(CommandHandler(command="debug", callback=lambda update, context: Thread(target=command_debug, args=(update, context)).start()))
+	dispatcher.add_handler(MessageHandler(filters=Filters.text & ~Filters.command, callback=lambda update, context: Thread(target=b_search, args=(update, context)).start()))
+	dispatcher.add_handler(MessageHandler(filters=Filters.all, callback=lambda update, context: Thread(target=b_debug, args=(update, context)).start()))
 
 	bot.send_message(chat_id=DEBUG_ID, text="Polling!!!")
 	print("Polling!!!")

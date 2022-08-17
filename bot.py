@@ -53,7 +53,7 @@ def command_start(update, context):
 	userName = update["message"]["chat"]["first_name"]
 	if LOGS:
 		rtext = ""
-		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]<> -> <code>start</code>'
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>start</code>'
 		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
 		rtext = ""
 	#userId = update["message"]["chat"]["id"]
@@ -261,9 +261,12 @@ def dl_antupload(update, context):
 	print(callb_query)
 	if LOGS:
 		rtext = ""
-		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]<> -> <code>dl_antupload [button] {f"{URL_LECTULANDIA}/download.php?d={b_id}"}</code>'
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>dl_antupload [button] {f"{URL_LECTULANDIA}/download.php?d={b_id}"}</code>'
 		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
 		rtext = ""
+	rtext = ""
+	rtext += "Descargando..."
+	to_delete = bot.send_message(chat_id=chatId, text=rtext)
 	req = scraper.get(url=f"{URL_LECTULANDIA}/download.php?d={b_id}")
 	if req.status_code == 200:
 		page_tree = fromstring(html=req.content)
@@ -307,8 +310,12 @@ def dl_antupload(update, context):
 						b_file.close()
 				# rtext = ""
 				# rtext += f"<b>Compartido</b>: {b_time}"
+				rtext = ""
+				rtext += "Enviando..."
+				bot.edit_message_text(chat_id=chatId, message_id=to_delete.message_id, text=rtext)
 				bot.send_document(chat_id=chatId, document=open(file=f"./books/{b_name}", mode="rb"), parse_mode="html")
 				unlink(f"./books/{b_name}")
+				bot.delete_message(chat_id=chatId, message_id=to_delete.message_id)
 
 			else:
 				rtext = ""

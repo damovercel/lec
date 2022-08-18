@@ -48,7 +48,7 @@ def printt(*values):
 
 
 def command_start(update, context):
-	print(str(update))
+	# print(str(update))
 	chatId = update["message"]["chat"]["id"]
 	userName = update["message"]["chat"]["first_name"]
 	if LOGS:
@@ -407,6 +407,21 @@ def b_debug(update, context):
 		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
 		rtext = ""
 
+def command_help(update, context):
+	# print(str(update))
+	chatId = update["message"]["chat"]["id"]
+	userName = update["message"]["chat"]["first_name"]
+	if LOGS:
+		rtext = ""
+		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>help</code>'
+		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
+		rtext = ""
+	#userId = update["message"]["chat"]["id"]
+	rtext = ""
+	#urle = "tg://user?id=" + str(userId)
+	rtext += f"Hola, puedo buscarte libros, autores, series, etc de lectulandia, solo escribe lo que quieres buscar, ejemplo:\n<i>el principito\nariana godoy\ngeralt de rivia\n</i>... una vez veas lo que te interesa, <b>copia su enlace</b>\n(en móvil: <b>dejando presionado</b> > <b>copiar</b>\nen pc: <b>click derecho</b> > <b>copiar enlace</b>) y envíamelo, me encargare de procesarlo😉" #<a href="tg://user?id={userId}">{userName}</a>'
+	bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
+
 if __name__ == '__main__':
 	updater = Updater(BOT_TOKEN)
 	dispatcher = updater.dispatcher
@@ -419,6 +434,7 @@ if __name__ == '__main__':
 	dispatcher.add_handler(CommandHandler(command="monthly", callback=lambda update, context: Thread(target=command_monthly, args=(update, context)).start()))
 	dispatcher.add_handler(CommandHandler(command="info", callback=lambda update, context: Thread(target=command_info, args=(update, context)).start()))
 	dispatcher.add_handler(CommandHandler(command="debug", callback=lambda update, context: Thread(target=command_debug, args=(update, context)).start()))
+	dispatcher.add_handler(CommandHandler(command="help", callback=lambda update, context: Thread(target=command_help, args=(update, context)).start()))
 	dispatcher.add_handler(MessageHandler(filters=Filters.text & ~Filters.command, callback=lambda update, context: Thread(target=b_search, args=(update, context)).start()))
 	dispatcher.add_handler(MessageHandler(filters=Filters.all, callback=lambda update, context: Thread(target=b_debug, args=(update, context)).start()))
 

@@ -258,15 +258,15 @@ def dl_antupload(update, context):
 	userName = update["callback_query"]["message"]["chat"]["first_name"]
 	callb_query = update["callback_query"]["data"]
 	b_id = callb_query.split(" ")[1]
+	rtext = ""
+	rtext += "Descargando..."
+	to_delete = bot.send_message(chat_id=chatId, text=rtext)
 	print(callb_query)
 	if LOGS:
 		rtext = ""
 		rtext += f'<a href="tg://user?id={chatId}">{userName} [{chatId}]</a> -> <code>dl_antupload [button] {f"{URL_LECTULANDIA}/download.php?d={b_id}"}</code>'
 		bot.send_message(chat_id=DEBUG_ID, text=rtext, parse_mode="html")
 		rtext = ""
-	rtext = ""
-	rtext += "Descargando..."
-	to_delete = bot.send_message(chat_id=chatId, text=rtext)
 	req = scraper.get(url=f"{URL_LECTULANDIA}/download.php?d={b_id}")
 	if req.status_code == 200:
 		page_tree = fromstring(html=req.content)
@@ -419,7 +419,7 @@ def command_help(update, context):
 	#userId = update["message"]["chat"]["id"]
 	rtext = ""
 	#urle = "tg://user?id=" + str(userId)
-	rtext += f"Hola, puedo buscarte libros, autores, series, etc de lectulandia, solo escribe lo que quieres buscar, ejemplo:\n<i>el principito\nariana godoy\ngeralt de rivia\n</i>... una vez veas lo que te interesa, <b>copia su enlace</b>\n(en móvil: <b>dejando presionado</b> > <b>copiar</b>\nen pc: <b>click derecho</b> > <b>copiar enlace</b>) y envíamelo, me encargare de procesarlo😉" #<a href="tg://user?id={userId}">{userName}</a>'
+	rtext += f"Hola, puedo buscarte libros, autores, series, etc de lectulandia, solo escribe lo que quieres buscar, ejemplo:\n<i>el principito\nariana godoy\ngeralt de rivia\n</i>... una vez veas lo que te interesa, <b>copia su enlace</b>\n(en móvil: <b>dejando presionado</b> > <b>copiar</b>\nen pc: <b>click derecho</b> > <b>copiar enlace</b>) y envíamelo, me encargare de procesarlo😉\n\n<b>Tip</b>: puedes usar una o varias palabras claves para buscar todos los resultados relacionados, ej: \n <i>verne</i> sirve para <b>Juan Vernet</b>, <b>Julio Verne</b>, <b>Etc...</b>" #<a href="tg://user?id={userId}">{userName}</a>'
 	bot.send_message(chat_id=chatId, text=rtext, parse_mode="html")
 
 if __name__ == '__main__':
